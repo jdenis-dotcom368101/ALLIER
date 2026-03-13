@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LACLIM — Générateur Appels d'Offres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --navy:#0f1f3d; --navy-mid:#1a3260; --blue:#1e4fd8; --blue-light:#3b6ef5;
+  --gold:#c9a84c; --gold-light:#e8c97a; --cream:#f7f5f0; --cream-dark:#ede9e0;
+  --text:#0f1f3d; --text-mid:#3d4f6b; --text-light:#7a8ba8; --white:#ffffff;
+  --success:#0d7a5f; --success-bg:#e8f7f3; --danger:#b91c1c; --danger-bg:#fef2f2;
+  --border:rgba(15,31,61,0.12); --shadow:0 4px 24px rgba(15,31,61,0.08);
+  --shadow-lg:0 12px 48px rgba(15,31,61,0.14);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);min-height:100vh;line-height:1.6;}
+
+header{background:var(--navy);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(255,255,255,0.08);}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-mark{width:34px;height:34px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:16px;color:var(--navy);flex-shrink:0;}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px;color:white;letter-spacing:0.02em;}
+.logo-sub{font-size:11px;color:rgba(255,255,255,0.45);font-weight:300;letter-spacing:0.08em;text-transform:uppercase;}
+.api-indicator{display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,0.5);padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;cursor:pointer;transition:all .2s;}
+.api-indicator:hover{border-color:rgba(255,255,255,0.3);color:rgba(255,255,255,0.8);}
+.api-dot{width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0;}
+.api-dot.ok{background:#22c55e;}
+
+.app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 64px);}
+.sidebar{background:white;border-right:1px solid var(--border);padding:1.5rem 0;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto;display:flex;flex-direction:column;}
+.nav-section{padding:0 1rem 1rem;}
+.nav-label{font-size:10px;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.1em;padding:0 .5rem;margin-bottom:6px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-mid);cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:var(--cream);color:var(--text);}
+.nav-item.active{background:var(--navy);color:white;}
+.nav-icon{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:rgba(0,0,0,0.05);}
+.nav-item.active .nav-icon{background:rgba(255,255,255,0.15);}
+.nav-badge{margin-left:auto;background:var(--gold);color:var(--navy);font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;min-width:20px;text-align:center;}
+.nav-item.active .nav-badge{background:rgba(255,255,255,0.25);color:white;}
+.sidebar-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border);font-size:12px;color:var(--text-light);line-height:1.5;}
+
+main{padding:2rem;max-width:880px;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,31,61,0.6);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:white;border-radius:16px;padding:2rem;width:480px;box-shadow:var(--shadow-lg);animation:modalIn .2s ease;}
+@keyframes modalIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+.modal h3{font-family:'DM Serif Display',serif;font-size:22px;color:var(--navy);margin-bottom:8px;}
+.modal p{font-size:14px;color:var(--text-mid);margin-bottom:1.5rem;line-height:1.6;}
+.modal p a{color:var(--blue);}
+.input-group{margin-bottom:1rem;}
+.input-group label{display:block;font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px;}
+.input-field{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--cream);transition:border-color .15s;outline:none;}
+.input-field:focus{border-color:var(--blue);background:white;}
+.input-field::placeholder{color:var(--text-light);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1.5rem;}
+
+.page-title{font-family:'DM Serif Display',serif;font-size:28px;color:var(--navy);margin-bottom:6px;}
+.page-sub{font-size:14px;color:var(--text-light);margin-bottom:2rem;}
+.card{background:white;border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem;box-shadow:var(--shadow);}
+.card-label{font-size:11px;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+
+.drop-zone{border:2px dashed var(--cream-dark);border-radius:10px;padding:2.5rem 1.5rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--blue-light);background:#f0f4ff;}
+.drop-icon-wrap{width:48px;height:48px;margin:0 auto 12px;background:var(--cream-dark);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;transition:background .2s;}
+.drop-zone:hover .drop-icon-wrap{background:#dce6ff;}
+.drop-zone h4{font-size:15px;font-weight:500;color:var(--text);margin-bottom:4px;}
+.drop-zone p{font-size:13px;color:var(--text-light);}
+.drop-zone p span{color:var(--blue);font-weight:500;}
+.file-pill{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--cream);border:1px solid var(--border);border-radius:10px;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.file-badge{width:36px;height:36px;background:var(--danger-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--danger);flex-shrink:0;}
+.file-pill-name{font-size:14px;font-weight:500;color:var(--text);}
+.file-pill-size{font-size:12px;color:var(--text-light);}
+.file-pill-remove{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-light);font-size:20px;line-height:1;padding:4px 6px;border-radius:4px;}
+.file-pill-remove:hover{color:var(--danger);background:var(--danger-bg);}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;border:1.5px solid transparent;text-decoration:none;}
+.btn-primary{background:var(--navy);color:white;border-color:var(--navy);width:100%;padding:14px;font-size:15px;}
+.btn-primary:hover:not(:disabled){background:var(--navy-mid);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary.loading{background:var(--blue);border-color:var(--blue);cursor:wait;}
+.btn-outline{background:white;color:var(--text);border-color:var(--border);}
+.btn-outline:hover{border-color:var(--text-mid);}
+.btn-gold{background:var(--gold);color:var(--navy);border-color:var(--gold);font-weight:600;}
+.btn-gold:hover{background:var(--gold-light);}
+.btn-danger{color:var(--danger);border-color:var(--border);background:white;}
+.btn-danger:hover{background:var(--danger-bg);border-color:var(--danger);}
+.btn-sm{padding:7px 14px;font-size:13px;border-radius:6px;}
+
+.progress-list{list-style:none;margin-top:1rem;}
+.progress-item{display:flex;align-items:center;gap:12px;padding:9px 0;font-size:14px;color:var(--text-light);border-bottom:1px solid var(--cream-dark);}
+.progress-item:last-child{border-bottom:none;}
+.p-dot{width:10px;height:10px;border-radius:50%;background:var(--cream-dark);flex-shrink:0;transition:all .3s;}
+.p-dot.done{background:var(--success);}
+.p-dot.running{background:var(--blue);animation:blink .9s infinite;}
+.p-dot.error{background:var(--danger);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.p-text.done{color:var(--text);}
+.p-text.running{color:var(--blue);font-weight:500;}
+.p-text.error{color:var(--danger);}
+
+.result-downloads{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:1rem;}
+.dl-card{padding:14px;border-radius:10px;border:1px solid var(--border);background:white;text-align:center;}
+.dl-card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;margin:0 auto 8px;}
+.dl-dc1{background:#dce9ff;color:#1e4fd8;}
+.dl-dc2{background:#d1fae5;color:#0d7a5f;}
+.dl-xl{background:#fef9e7;color:#92610d;}
+.dl-card-name{font-size:13px;font-weight:500;color:var(--text);}
+.dl-card-sub{font-size:11px;color:var(--success);margin-top:2px;}
+
+.synth-grid{display:grid;grid-template-columns:auto 1fr;gap:0;}
+.synth-row{display:contents;}
+.synth-key{font-size:13px;font-weight:500;color:var(--text-mid);padding:8px 14px 8px 0;border-bottom:1px solid var(--cream-dark);white-space:nowrap;}
+.synth-val{font-size:13px;color:var(--text);padding:8px 0;border-bottom:1px solid var(--cream-dark);line-height:1.5;}
+
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:3px 10px;border-radius:20px;}
+.pill-yes{background:var(--success-bg);color:var(--success);}
+.pill-no{background:var(--cream-dark);color:var(--text-mid);}
+
+.register-toolbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem;gap:1rem;}
+.table-wrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);overflow-x:auto;}
+.ao-table{width:100%;border-collapse:collapse;font-size:13px;min-width:700px;}
+.ao-table th{background:var(--navy);color:rgba(255,255,255,.7);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:12px 14px;text-align:left;white-space:nowrap;}
+.ao-table td{padding:12px 14px;border-bottom:1px solid var(--cream-dark);color:var(--text);vertical-align:top;}
+.ao-table tr:last-child td{border-bottom:none;}
+.ao-table tr:hover td{background:var(--cream);}
+.ao-ref{font-weight:600;color:var(--blue);white-space:nowrap;}
+.ao-trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:180px;}
+
+.empty-state{text-align:center;padding:4rem 2rem;background:white;border:1px solid var(--border);border-radius:12px;}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4;}
+.empty-state h4{font-size:16px;font-weight:500;color:var(--text);margin-bottom:6px;}
+.empty-state p{font-size:14px;color:var(--text-light);}
+
+.error-box{background:var(--danger-bg);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:1rem 1.25rem;font-size:14px;color:var(--danger);margin-top:1rem;display:none;}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+input[type=file]{display:none;}
+
+@media(max-width:768px){
+  .app{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  main{padding:1rem;}
+  .result-downloads{grid-template-columns:1fr;}
+  .register-toolbar{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">L</div>
+    <div>
+      <div class="logo-text">LACLIM</div>
+      <div class="logo-sub">Générateur Appels d'Offres</div>
+    </div>
+  </div>
+  <div class="api-indicator" onclick="openApiModal()">
+    <div id="apiDot" class="api-dot"></div>
+    <span id="apiStatus">Clé API requise</span>
+  </div>
+</header>
+
+<div class="app">
+  <nav class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Actions</div>
+      <button class="nav-item active" onclick="showPanel('analyze',this)">
+        <div class="nav-icon">📄</div><span>Analyser un RC</span>
+      </button>
+      <button class="nav-item" onclick="showPanel('register',this)">
+        <div class="nav-icon">📊</div><span>Registre AO</span>
+        <span id="sideCount" class="nav-badge">0</span>
+      </button>
+      <button class="nav-item" onclick="showPanel('about',this)">
+        <div class="nav-icon">ℹ️</div><span>À propos</span>
+      </button>
+    </div>
+    <div class="sidebar-footer">
+      <strong>LACLIM SAS</strong><br>
+      9, rue Gaston Evrard<br>31100 Toulouse<br>
+      SIRET : 341 294 627 00052
+    </div>
+  </nav>
+
+  <main>
+    <!-- PANEL ANALYSER -->
+    <div id="panel-analyze" class="panel active">
+      <div class="page-title">Analyser un RC</div>
+      <div class="page-sub">Déposez le Règlement de Consultation pour générer les DC1, DC2 et enrichir votre registre.</div>
+
+      <div class="card">
+        <div class="card-label">Règlement de consultation (PDF)</div>
+        <div id="dropZone" class="drop-zone"
+          onclick="document.getElementById('fileInput').click()"
+          ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
+          <div class="drop-icon-wrap">📄</div>
+          <h4>Déposez votre fichier ici</h4>
+          <p>ou <span>parcourir</span> — PDF uniquement</p>
+        </div>
+        <div id="fileInfo" style="display:none"></div>
+        <input type="file" id="fileInput" accept=".pdf">
+      </div>
+
+      <div id="errorBox" class="error-box"></div>
+
+      <button id="mainBtn" class="btn btn-primary" disabled onclick="runAnalysis()">
+        Lancer l'analyse et générer les documents
+      </button>
+
+      <div id="progressArea" style="display:none;margin-top:1.25rem">
+        <div class="card" style="padding:1rem 1.5rem">
+          <div class="card-label">Progression</div>
+          <ul class="progress-list">
+            <li class="progress-item"><div id="d1" class="p-dot"></div><span id="t1" class="p-text">Lecture du RC</span></li>
+            <li class="progress-item"><div id="d2" class="p-dot"></div><span id="t2" class="p-text">Extraction des données acheteur et objet</span></li>
+            <li class="progress-item"><div id="d3" class="p-dot"></div><span id="t3" class="p-text">Extraction des informations clés AO</span></li>
+            <li class="progress-item"><div id="d4" class="p-dot"></div><span id="t4" class="p-text">Génération du fichier DC1.docx</span></li>
+            <li class="progress-item"><div id="d5" class="p-dot"></div><span id="t5" class="p-text">Génération du fichier DC2.docx</span></li>
+            <li class="progress-item"><div id="d6" class="p-dot"></div><span id="t6" class="p-text">Enregistrement dans le registre AO</span></li>
+            <li class="progress-item"><div id="d7" class="p-dot"></div><span id="t7" class="p-text">Export Excel mis à jour</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="resultsArea" style="display:none;margin-top:1rem">
+        <div class="result-downloads">
+          <div class="dl-card"><div class="dl-card-icon dl-dc1">DC1</div><div class="dl-card-name">DC1.docx</div><div class="dl-card-sub">✓ Téléchargé</div></div>
+          <div class="dl-card"><div class="dl-card-icon dl-dc2">DC2</div><div class="dl-card-name">DC2.docx</div><div class="dl-card-sub">✓ Téléchargé</div></div>
+          <div class="dl-card"><div class="dl-card-icon dl-xl">XLS</div><div class="dl-card-name">Registre.xlsx</div><div class="dl-card-sub">✓ Téléchargé</div></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Fiche de synthèse</div>
+          <div id="synthContent" class="synth-grid"></div>
+        </div>
+        <button class="btn btn-outline" style="width:100%;margin-top:.5rem"
+          onclick="showPanel('register',document.querySelectorAll('.nav-item')[1])">
+          Voir le registre complet →
+        </button>
+      </div>
+    </div>
+
+    <!-- PANEL REGISTRE -->
+    <div id="panel-register" class="panel">
+      <div class="register-toolbar">
+        <div>
+          <div class="page-title">Registre AO</div>
+          <div class="page-sub" style="margin-bottom:0"><span id="registerCount">0</span> appel(s) d'offres enregistré(s)</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-gold btn-sm" onclick="exportExcel()">⬇ Exporter Excel</button>
+          <button class="btn btn-danger btn-sm" onclick="clearRegister()">Vider</button>
+        </div>
+      </div>
+      <div id="registerContent"></div>
+    </div>
+
+    <!-- PANEL À PROPOS -->
+    <div id="panel-about" class="panel">
+      <div class="page-title">À propos</div>
+      <div class="page-sub">POC LACLIM — Générateur automatique de documents AO</div>
+      <div class="card">
+        <div class="card-label">Fonctionnement</div>
+        <p style="font-size:14px;color:var(--text-mid);line-height:1.8;margin-bottom:1rem">
+          Cet outil analyse les Règlements de Consultation (RC) au format PDF grâce à l'IA Claude (Anthropic). En un clic, il génère automatiquement :
+        </p>
+        <ul style="font-size:14px;color:var(--text-mid);padding-left:1.25rem;line-height:2.2">
+          <li>Le formulaire <strong>DC1</strong> pré-rempli (sections A et B depuis le RC, section D avec les données LACLIM)</li>
+          <li>Le formulaire <strong>DC2</strong> pré-rempli (mêmes règles que DC1)</li>
+          <li>L'<strong>Excel du registre</strong> AO mis à jour et cumulatif</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-label">Données extraites du RC</div>
+        <div class="synth-grid">
+          <div class="synth-row"><div class="synth-key">Référence</div><div class="synth-val">Numéro du marché</div></div>
+          <div class="synth-row"><div class="synth-key">Acheteur</div><div class="synth-val">Nom et adresse du pouvoir adjudicateur</div></div>
+          <div class="synth-row"><div class="synth-key">Objet</div><div class="synth-val">Objet exact de la consultation et lots</div></div>
+          <div class="synth-row"><div class="synth-key">Date limite</div><div class="synth-val">Date et heure de remise des offres</div></div>
+          <div class="synth-row"><div class="synth-key">Visite obligatoire</div><div class="synth-val">Oui / Non — avec dates et contacts</div></div>
+          <div class="synth-row"><div class="synth-key">Méthode d'analyse</div><div class="synth-val">Critères de jugement et pondérations</div></div>
+          <div class="synth-row"><div class="synth-key">Plateforme</div><div class="synth-val">URL de dépôt des offres</div></div>
+        </div>
+      </div>
+      <div class="card" style="background:var(--cream)">
+        <div class="card-label">Clé API Anthropic</div>
+        <p style="font-size:14px;color:var(--text-mid);line-height:1.7">
+          Une clé API Anthropic est nécessaire. Elle est stockée uniquement dans votre navigateur (localStorage) et n'est transmise qu'à l'API Anthropic lors des analyses.<br><br>
+          Pour en obtenir une (gratuit pour tester) : <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--blue);font-weight:500">console.anthropic.com</a>
+        </p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL CLÉ API -->
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this&&apiKey)closeApiModal()">
+  <div class="modal">
+    <h3>Clé API Anthropic</h3>
+    <p>Nécessaire pour analyser vos RC. Stockée uniquement dans votre navigateur, jamais partagée.<br><br>
+    Obtenir une clé : <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a></p>
+    <div class="input-group">
+      <label>Votre clé API</label>
+      <input type="password" id="apiKeyInput" class="input-field" placeholder="sk-ant-..." autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="if(apiKey)closeApiModal()">Annuler</button>
+      <button class="btn btn-primary" style="width:auto" onclick="saveApiKey()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIGURATION ──
+// Clé API intégrée pour le POC — remplacer par '' pour forcer la saisie manuelle
+const BUILT_IN_KEY = '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';
+
+// ── STATE ──
+let apiKey = localStorage.getItem('laclim_api_key') || '';
+let pdfBase64 = null;
+let aoRegister = JSON.parse(localStorage.getItem('laclim_register') || '[]');
+
+// ── INIT ──
+// Si une clé est intégrée, on masque l'indicateur API et on passe directement
+if (BUILT_IN_KEY && BUILT_IN_KEY !== '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') {
+  document.getElementById('apiDot').classList.add('ok');
+  document.getElementById('apiStatus').textContent = 'Prêt';
+} else {
+  updateApiUI();
+}
+renderRegister();
+
+// ── API KEY ──
+function openApiModal(){document.getElementById('modalOverlay').classList.add('open');document.getElementById('apiKeyInput').value=apiKey;setTimeout(()=>document.getElementById('apiKeyInput').focus(),100);}
+function closeApiModal(){document.getElementById('modalOverlay').classList.remove('open');}
+function saveApiKey(){
+  const v=document.getElementById('apiKeyInput').value.trim();
+  if(!v){alert('Veuillez entrer une clé API valide.');return;}
+  apiKey=v;localStorage.setItem('laclim_api_key',apiKey);updateApiUI();closeApiModal();
+}
+function updateApiUI(){
+  const dot=document.getElementById('apiDot'),status=document.getElementById('apiStatus');
+  if(apiKey){dot.classList.add('ok');status.textContent='API connectée';}
+  else{dot.classList.remove('ok');status.textContent='Clé API requise';setTimeout(openApiModal,500);}
+}
+
+// ── NAVIGATION ──
+function showPanel(name,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+// ── FILE ──
+document.getElementById('fileInput').addEventListener('change',e=>handleFile(e.target.files[0]));
+function onDragOver(e){e.preventDefault();document.getElementById('dropZone').classList.add('drag-over');}
+function onDragLeave(){document.getElementById('dropZone').classList.remove('drag-over');}
+function onDrop(e){e.preventDefault();document.getElementById('dropZone').classList.remove('drag-over');handleFile(e.dataTransfer.files[0]);}
+
+function handleFile(file){
+  if(!file)return;
+  if(file.type!=='application/pdf'){showError('Veuillez sélectionner un fichier PDF.');return;}
+  const r=new FileReader();
+  r.onload=e=>{
+    pdfBase64=e.target.result.split(',')[1];
+    document.getElementById('dropZone').style.display='none';
+    document.getElementById('fileInfo').style.display='block';
+    document.getElementById('fileInfo').innerHTML=`<div class="file-pill"><div class="file-badge">PDF</div><div><div class="file-pill-name">${file.name}</div><div class="file-pill-size">${(file.size/1024).toFixed(0)} Ko</div></div><button class="file-pill-remove" onclick="resetFile()">×</button></div>`;
+    document.getElementById('mainBtn').disabled=false;
+    document.getElementById('resultsArea').style.display='none';
+    document.getElementById('progressArea').style.display='none';
+    hideError();
+  };
+  r.readAsDataURL(file);
+}
+
+function resetFile(){
+  pdfBase64=null;
+  document.getElementById('dropZone').style.display='block';
+  document.getElementById('fileInfo').style.display='none';
+  document.getElementById('mainBtn').disabled=true;
+  document.getElementById('fileInput').value='';
+  document.getElementById('progressArea').style.display='none';
+  document.getElementById('resultsArea').style.display='none';
+}
+
+function showError(msg){const e=document.getElementById('errorBox');e.style.display='block';e.textContent='⚠ '+msg;}
+function hideError(){document.getElementById('errorBox').style.display='none';}
+
+// ── STEPS ──
+function setStep(n,state,text){
+  const d=document.getElementById('d'+n),l=document.getElementById('t'+n);
+  d.className='p-dot '+state;l.className='p-text '+state;
+  if(text)l.textContent=text;
+}
+function resetSteps(){[1,2,3,4,5,6,7].forEach(n=>setStep(n,'',null));}
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ── ANALYSE ──
+async function runAnalysis(){
+  if(!pdfBase64)return;
+  const activeKey = apiKey || BUILT_IN_KEY;
+  if(!activeKey || activeKey === 'VOTRE_CLE_API_ICI'){openApiModal();return;}
+  const btn=document.getElementById('mainBtn');
+  btn.disabled=true;btn.classList.add('loading');
+  btn.innerHTML='<div class="spinner"></div> Analyse en cours...';
+  document.getElementById('progressArea').style.display='block';
+  document.getElementById('resultsArea').style.display='none';
+  hideError();resetSteps();
+
+  try{
+    setStep(1,'running','Lecture du RC en cours...');
+    await delay(300);
+    setStep(1,'done','RC chargé avec succès');
+    setStep(2,'running','Extraction des données acheteur et objet...');
+
+    const raw=await callClaude([
+      {type:"document",source:{type:"base64",media_type:"application/pdf",data:pdfBase64}},
+      {type:"text",text:`Analyse ce Règlement de Consultation et extrais les données en JSON avec exactement ces clés :
+{
+  "reference": "Numéro de référence du marché",
+  "acheteur_nom": "Nom complet du pouvoir adjudicateur",
+  "acheteur_adresse": "Adresse complète de l'acheteur",
+  "objet_consultation": "Objet exact du marché",
+  "lots": "Description des lots",
+  "date_limite": "Date et heure limite de remise des offres",
+  "visite_obligatoire": "OUI ou NON",
+  "visite_details": "Dates, contact et lieu de la visite si obligatoire, sinon chaine vide",
+  "plateforme": "URL ou nom de la plateforme de dépôt",
+  "methode_analyse": "Résumé méthode analyse avec critères et pondération",
+  "criteres_detail": "Détail complet des critères de jugement avec pourcentages",
+  "notes_importantes": "Autres points importants (durée validité offres, négociation, délais)"
+}`}
+    ]);
+
+    const data=JSON.parse(raw.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim());
+    setStep(2,'done','Données acheteur et objet extraites');
+    setStep(3,'done','Informations clés AO extraites');
+
+    setStep(4,'running','Génération du fichier DC1.docx...');
+    await generateDC1(data);
+    setStep(4,'done','DC1.docx téléchargé');
+
+    setStep(5,'running','Génération du fichier DC2.docx...');
+    await generateDC2(data);
+    setStep(5,'done','DC2.docx téléchargé');
+
+    setStep(6,'running','Enregistrement dans le registre...');
+    const entry={...data,date_ajout:new Date().toLocaleDateString('fr-FR')};
+    const idx=aoRegister.findIndex(r=>r.reference===data.reference);
+    if(idx>=0)aoRegister[idx]=entry;else aoRegister.unshift(entry);
+    localStorage.setItem('laclim_register',JSON.stringify(aoRegister));
+    renderRegister();
+    setStep(6,'done','Enregistré dans le registre AO');
+
+    setStep(7,'running','Export Excel en cours...');
+    exportExcel(true);
+    setStep(7,'done','Registre Excel téléchargé');
+
+    showResults(data);
+
+  }catch(err){
+    showError('Erreur : '+err.message);
+    [1,2,3,4,5,6,7].forEach(n=>{if(document.getElementById('d'+n).classList.contains('running'))setStep(n,'error',null);});
+  }finally{
+    btn.disabled=false;btn.classList.remove('loading');
+    btn.innerHTML='↺ Analyser un nouveau RC';
+  }
+}
+
+async function callClaude(content){
+  // Nettoyer la cle : supprimer tout caractere non-ASCII qui bloquerait les headers HTTP
+  const rawKey = (apiKey || BUILT_IN_KEY || '').trim();
+  const key = rawKey.split('').filter(c => c.charCodeAt(0) < 128).join('');
+
+  const payload = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1500,
+    system: 'JSON only. No markdown. No explanation. Return a single valid JSON object.',
+    messages: [{ role: 'user', content: content }]
+  };
+
+  // Utiliser l objet Headers pour un encodage strict ASCII
+  const headers = new Headers();
+  headers.append('Content-Type', 'application/json');
+  headers.append('x-api-key', key);
+  headers.append('anthropic-version', '2023-06-01');
+  headers.append('anthropic-dangerous-direct-browser-access', 'true');
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(payload)
+  });
+
+  if(!resp.ok){
+    const e = await resp.json().catch(()=>({}));
+    throw new Error(e.error ? e.error.message : 'Erreur API ' + resp.status);
+  }
+  const d = await resp.json();
+  return d.content.find(b => b.type === 'text') ? d.content.find(b => b.type === 'text').text : '';
+}
+
+// ── RESULTS ──
+function showResults(data){
+  document.getElementById('resultsArea').style.display='block';
+  const rows=[
+    ['Référence',data.reference],
+    ['Date limite',data.date_limite],
+    ['Visite',data.visite_obligatoire==='OUI'
+      ?`<span class="pill pill-yes">● Obligatoire</span>${data.visite_details?'<br><span style="font-size:12px;color:var(--text-mid);margin-top:4px;display:block">'+data.visite_details+'</span>':''}`
+      :'<span class="pill pill-no">Non requise</span>'],
+    ['Plateforme',data.plateforme||'—'],
+    ['Méthode d\'analyse',data.methode_analyse||'—'],
+    ['Notes',data.notes_importantes||'—'],
+  ];
+  document.getElementById('synthContent').innerHTML=rows.map(([k,v])=>
+    `<div class="synth-row"><div class="synth-key">${k}</div><div class="synth-val">${v||'—'}</div></div>`
+  ).join('');
+}
+
+// ── REGISTER ──
+function renderRegister(){
+  const count=aoRegister.length;
+  document.getElementById('sideCount').textContent=count;
+  document.getElementById('registerCount').textContent=count;
+  const c=document.getElementById('registerContent');
+  if(count===0){
+    c.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div><h4>Aucun appel d'offres enregistré</h4><p>Analysez un RC pour commencer à remplir votre registre.</p></div>`;
+    return;
+  }
+  c.innerHTML=`<div class="table-wrap"><table class="ao-table">
+    <thead><tr><th>Référence</th><th>Acheteur</th><th>Objet</th><th>Date limite</th><th>Visite</th><th>Plateforme</th><th>Méthode analyse</th></tr></thead>
+    <tbody>${aoRegister.map(r=>`<tr>
+      <td><span class="ao-ref">${r.reference||'—'}</span><br><span style="font-size:11px;color:var(--text-light)">${r.date_ajout||''}</span></td>
+      <td><span class="ao-trunc" title="${r.acheteur_nom||''}">${r.acheteur_nom||'—'}</span></td>
+      <td><span class="ao-trunc" title="${r.objet_consultation||''}">${r.objet_consultation||'—'}</span></td>
+      <td style="white-space:nowrap;font-size:12px">${r.date_limite||'—'}</td>
+      <td>${r.visite_obligatoire==='OUI'?'<span class="pill pill-yes">● Oui</span>':'<span class="pill pill-no">Non</span>'}</td>
+      <td><span class="ao-trunc" title="${r.plateforme||''}" style="font-size:12px">${r.plateforme||'—'}</span></td>
+      <td><span class="ao-trunc" title="${r.methode_analyse||''}" style="font-size:12px">${r.methode_analyse||'—'}</span></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function clearRegister(){
+  if(!confirm('Vider tout le registre ? Cette action est irréversible.'))return;
+  aoRegister=[];localStorage.setItem('laclim_register','[]');renderRegister();
+}
+
+async function exportExcel(silent=false){
+  if(aoRegister.length===0&&!silent){alert('Le registre est vide.');return;}
+  const headers=['Référence','Acheteur','Objet','Lots','Date limite','Visite obligatoire','Détails visite','Plateforme','Méthode analyse','Critères détaillés','Notes importantes','Date ajout'];
+  const rows=aoRegister.map(r=>[r.reference||'',r.acheteur_nom||'',r.objet_consultation||'',r.lots||'',r.date_limite||'',r.visite_obligatoire||'',r.visite_details||'',r.plateforme||'',r.methode_analyse||'',r.criteres_detail||'',r.notes_importantes||'',r.date_ajout||'']);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);
+  ws['!cols']=[{wch:12},{wch:22},{wch:35},{wch:18},{wch:22},{wch:10},{wch:30},{wch:25},{wch:28},{wch:40},{wch:35},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,'Registre AO');
+  const filename = 'Registre_AO_LACLIM_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  const wbOut = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbOut], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  if (window.showSaveFilePicker && !silent) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'Fichier Excel', accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']} }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch(e) { if(e.name==='AbortError') return; }
+  }
+  // Fallback automatique (utilisé pendant l'analyse ou si navigateur non compatible)
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── WORD ──
+function mkPara(text,opts={}){
+  const{bold=false,size=22,spacing=160,color='1a1a1a',italic=false}=opts;
+  return new docx.Paragraph({spacing:{after:spacing},children:[new docx.TextRun({text:text||'',bold,size,color,italics:italic,font:'Calibri'})]});
+}
+function mkTitle(text){
+  return new docx.Paragraph({spacing:{before:300,after:120},border:{bottom:{style:docx.BorderStyle.SINGLE,size:6,color:'1e4fd8'}},
+    children:[new docx.TextRun({text,bold:true,size:26,color:'0f1f3d',font:'Calibri'})]});
+}
+function mkField(label,value){
+  return new docx.Paragraph({spacing:{after:100},children:[
+    new docx.TextRun({text:label+' : ',bold:true,size:20,color:'0f1f3d',font:'Calibri'}),
+    new docx.TextRun({text:value||'',size:20,font:'Calibri'})
+  ]});
+}
+function mkFooter(ref){
+  return new docx.Paragraph({spacing:{before:500},border:{top:{style:docx.BorderStyle.SINGLE,size:2,color:'cccccc'}},
+    children:[new docx.TextRun({text:'Document généré automatiquement — LACLIM — Réf. '+ref,size:16,color:'999999',italics:true,font:'Calibri'})]});
+}
+
+// Dialogue natif de sauvegarde (ouvre l'explorateur de fichiers)
+async function saveDocx(buffer, filename) {
+  const blob = new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  // showSaveFilePicker = API moderne qui ouvre l'explorateur natif
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'Document Word', accept: {'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']} }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return; // L'utilisateur a annulé — on ne fait rien
+    }
+  }
+  // Fallback : téléchargement direct si le navigateur ne supporte pas showSaveFilePicker
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Nom de fichier avec la référence du RC (ex: DC1-25.151.docx)
+function buildFilename(prefix, reference) {
+  const ref = (reference || 'AO').replace(/\s+/g, '');
+  return prefix + '-' + ref + '.docx';
+}
+
+async function generateDC1(data){
+  const filename = buildFilename('DC1', data.reference);
+  const doc=new docx.Document({
+    styles:{default:{document:{run:{font:'Calibri',size:22}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1134,right:1134,bottom:1134,left:1134}}},
+      children:[
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:60},children:[new docx.TextRun({text:'MARCHÉS PUBLICS',bold:true,size:18,color:'666666',font:'Calibri'})]}),
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:60},children:[new docx.TextRun({text:'Lettre de candidature — Désignation du mandataire par ses co-traitants',bold:true,size:24,color:'0f1f3d',font:'Calibri'})]}),
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:400},children:[new docx.TextRun({text:'DC1',bold:true,size:64,color:'1e4fd8',font:'Calibri'})]}),
+        mkTitle('A — Identification de l\'acheteur'),
+        mkPara(data.acheteur_nom,{bold:true}),mkPara(data.acheteur_adresse),
+        mkTitle('B — Objet de la consultation'),
+        mkPara(data.objet_consultation,{bold:true}),
+        mkPara('Référence : '+(data.reference||'')),mkPara(data.lots||''),
+        mkTitle('C — Objet de la candidature'),
+        mkPara('La candidature est présentée pour le lot n°1 de la procédure de passation du marché public.'),
+        mkTitle('D — Présentation du candidat'),
+        mkField('Nom commercial et dénomination sociale','LACLIM'),
+        mkField('Adresse postale','9, rue Gaston Evrard — 31100 Toulouse'),
+        mkField('Adresse électronique','infos@laclim.com'),
+        mkField('Numéro de téléphone','05 62 206 400'),
+        mkField('Numéro SIRET','341 294 627 00052'),
+        mkField('Forme juridique','SAS'),
+        mkTitle('E — Signature'),
+        mkPara('Fait à Toulouse, le ___________________________'),
+        new docx.Paragraph({spacing:{before:500,after:700},children:[new docx.TextRun({text:' ',size:20})]}),
+        mkPara('Guillaume ALLIER',{bold:true}),mkPara('Gérant — LACLIM'),
+        mkFooter(data.reference||'')
+      ]
+    }]
+  });
+  const buf = await docx.Packer.toBuffer(doc);
+  await saveDocx(buf, filename);
+}
+
+async function generateDC2(data){
+  const filename = buildFilename('DC2', data.reference);
+  const doc=new docx.Document({
+    styles:{default:{document:{run:{font:'Calibri',size:22}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1134,right:1134,bottom:1134,left:1134}}},
+      children:[
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:60},children:[new docx.TextRun({text:'MARCHÉS PUBLICS',bold:true,size:18,color:'666666',font:'Calibri'})]}),
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:60},children:[new docx.TextRun({text:'Déclaration du candidat individuel ou du membre du groupement',bold:true,size:24,color:'0f1f3d',font:'Calibri'})]}),
+        new docx.Paragraph({alignment:docx.AlignmentType.CENTER,spacing:{after:400},children:[new docx.TextRun({text:'DC2',bold:true,size:64,color:'0d7a5f',font:'Calibri'})]}),
+        mkTitle('A — Identification de l\'acheteur'),
+        mkPara(data.acheteur_nom,{bold:true}),mkPara(data.acheteur_adresse),
+        mkTitle('B — Objet de la consultation'),
+        mkPara(data.objet_consultation,{bold:true}),
+        mkPara('Référence : '+(data.reference||'')),mkPara(data.lots||''),
+        mkTitle('C — Identification du candidat'),
+        mkField('Nom commercial et dénomination sociale','LACLIM'),
+        mkField('Adresse postale','9, rue Gaston Evrard — 31100 Toulouse'),
+        mkField('Siège social','9, rue Gaston Evrard — 31100 Toulouse'),
+        mkField('Adresse électronique','infos@laclim.com'),
+        mkField('Numéro de téléphone','05 62 206 400'),
+        mkField('Numéro SIRET','341 294 627 00052'),
+        mkField('Forme juridique','SAS'),
+        mkField('Statut PME','Oui — Petite ou Moyenne Entreprise'),
+        mkTitle('D — Présentation des capacités'),
+        mkPara('Capacités économiques, financières, techniques et professionnelles présentées conformément aux exigences du dossier de consultation des entreprises.',{italic:true,color:'555555'}),
+        mkTitle('E — Signature'),
+        mkPara('Fait à Toulouse, le ___________________________'),
+        new docx.Paragraph({spacing:{before:500,after:700},children:[new docx.TextRun({text:' ',size:20})]}),
+        mkPara('Guillaume ALLIER',{bold:true}),mkPara('Gérant — LACLIM'),
+        mkFooter(data.reference||'')
+      ]
+    }]
+  });
+  const buf = await docx.Packer.toBuffer(doc);
+  await saveDocx(buf, filename);
+}
+</script>
+</body>
+</html>
