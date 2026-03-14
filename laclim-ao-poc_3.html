@@ -479,9 +479,8 @@ async function runAnalysis(){
 }
 
 async function callClaude(content){
-  // Nettoyer la cle : supprimer tout caractere non-ASCII qui bloquerait les headers HTTP
   const rawKey = (apiKey || BUILT_IN_KEY || '').trim();
-  const key = rawKey.split('').filter(c => c.charCodeAt(0) < 128).join('');
+  const key = rawKey.split('').filter(ch => ch.charCodeAt(0) < 128).join('');
 
   const payload = {
     model: 'claude-sonnet-4-20250514',
@@ -490,23 +489,48 @@ async function callClaude(content){
     messages: [{ role: 'user', content: content }]
   };
 
-  // Utiliser l objet Headers pour un encodage strict ASCII
-  const headers = new Headers();
-  headers.append('Content-Type', 'application/json');
-  headers.append('x-api-key', key);
-  headers.append('anthropic-version', '2023-06-01');
-  headers.append('anthropic-dangerous-direct-browser-access', 'true');
+  const bodyStr = JSON.stringify(payload);
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: headers,
-    body: JSON.stringify(payload)
-  });
+  let resp;
+  try {
+    // Tentative 1 : appel direct avec header Anthropic CORS
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: bodyStr
+    });
+  } catch(fetchErr) {
+    // Tentative 2 : via proxy CORS public (fallback si appel direct bloqué)
+    try {
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://api.anthropic.com/v1/messages');
+      resp = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01'
+        },
+        body: bodyStr
+      });
+    } catch(proxyErr) {
+      throw new Error('Connexion impossible a l API Anthropic. Verifiez votre connexion internet. Detail : ' + fetchErr.message);
+    }
+  }
 
   if(!resp.ok){
-    const e = await resp.json().catch(()=>({}));
-    throw new Error(e.error ? e.error.message : 'Erreur API ' + resp.status);
+    let errMsg = 'Erreur API ' + resp.status;
+    try {
+      const e = await resp.json();
+      errMsg = e.error ? e.error.message : errMsg;
+    } catch(e){}
+    throw new Error(errMsg);
   }
+
   const d = await resp.json();
   return d.content.find(b => b.type === 'text') ? d.content.find(b => b.type === 'text').text : '';
 }
