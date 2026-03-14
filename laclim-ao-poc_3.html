@@ -409,7 +409,7 @@ function delay(ms){return new Promise(r=>setTimeout(r,ms));}
 async function runAnalysis(){
   if(!pdfBase64)return;
   const activeKey = apiKey || BUILT_IN_KEY;
-  if(!activeKey || activeKey === 'VOTRE_CLE_API_ICI'){openApiModal();return;}
+  if(!activeKey || activeKey === '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'){openApiModal();return;}
   const btn=document.getElementById('mainBtn');
   btn.disabled=true;btn.classList.add('loading');
   btn.innerHTML='<div class="spinner"></div> Analyse en cours...';
